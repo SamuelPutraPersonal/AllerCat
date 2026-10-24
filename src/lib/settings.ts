@@ -30,21 +30,26 @@ function validPills(value: unknown): PillItem[] {
   return pills.length ? pills : DEFAULT_PILLS
 }
 
+/** Coerces untrusted data (storage, backup files) into valid settings, filling gaps with defaults. */
+export function sanitizeSettings(value: unknown): UserSettings {
+  if (!value || typeof value !== 'object') return DEFAULT_SETTINGS
+  // `reminderTime` / `reminderEnabled` are the single-reminder keys from earlier versions.
+  const parsed = value as Partial<UserSettings> & { reminderTime?: string; reminderEnabled?: boolean }
+  return {
+    morningReminderTime: validTime(parsed.morningReminderTime ?? parsed.reminderTime, DEFAULT_SETTINGS.morningReminderTime),
+    morningReminderEnabled: (parsed.morningReminderEnabled ?? parsed.reminderEnabled) === true,
+    eveningReminderTime: validTime(parsed.eveningReminderTime, DEFAULT_SETTINGS.eveningReminderTime),
+    eveningReminderEnabled: parsed.eveningReminderEnabled === true,
+    catBreed: validBreed(parsed.catBreed),
+    soundEnabled: parsed.soundEnabled !== false,
+    pills: validPills(parsed.pills),
+  }
+}
+
 export function loadSettings(): UserSettings {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return DEFAULT_SETTINGS
-    // `reminderTime` / `reminderEnabled` are the single-reminder keys from earlier versions.
-    const parsed = JSON.parse(raw) as Partial<UserSettings> & { reminderTime?: string; reminderEnabled?: boolean }
-    return {
-      morningReminderTime: validTime(parsed.morningReminderTime ?? parsed.reminderTime, DEFAULT_SETTINGS.morningReminderTime),
-      morningReminderEnabled: (parsed.morningReminderEnabled ?? parsed.reminderEnabled) === true,
-      eveningReminderTime: validTime(parsed.eveningReminderTime, DEFAULT_SETTINGS.eveningReminderTime),
-      eveningReminderEnabled: parsed.eveningReminderEnabled === true,
-      catBreed: validBreed(parsed.catBreed),
-      soundEnabled: parsed.soundEnabled !== false,
-      pills: validPills(parsed.pills),
-    }
+    return raw ? sanitizeSettings(JSON.parse(raw)) : DEFAULT_SETTINGS
   } catch {
     return DEFAULT_SETTINGS
   }

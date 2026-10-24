@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import type { ChangeEvent } from 'react'
 import { Info, Pencil, Trash2 } from 'lucide-react'
 import PageHeader from '../components/PageHeader'
 import Card from '../components/Card'
@@ -14,6 +15,7 @@ import { CAT_BREEDS, PILL_COLORS, db } from '../storage'
 import type { CatBreed, PillItem, UserSettings } from '../storage'
 import { DEFAULT_SETTINGS, saveSettings } from '../lib/settings'
 import { toDateKey } from '../lib/streak'
+import { exportAllDataJSON, importAllDataJSON, parseBackup } from '../utils/backup'
 
 interface ReminderCardProps {
   tone: 'lavender' | 'peach'
@@ -288,6 +290,37 @@ export default function SettingsPage() {
     }
   }
 
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  const downloadBackup = async () => {
+    try {
+      const filename = await exportAllDataJSON()
+      flash(`Backup saved as ${filename}`)
+    } catch {
+      flash('Could not create the backup.')
+    }
+  }
+
+  const restoreBackup = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = '' // allow picking the same file again
+    if (!file) return
+    try {
+      const text = await file.text()
+      parseBackup(text) // validate before asking, so bad files fail early
+      if (!window.confirm('Are you sure? This will replace your current logs.')) return
+      const { logs, skipped } = await importAllDataJSON(text, 'replace')
+      setDenied(notificationsSupported() && Notification.permission === 'denied')
+      flash(
+        skipped
+          ? `Restored ${logs} logs (${skipped} unusable entries skipped).`
+          : `Data restored successfully (${logs} logs).`,
+      )
+    } catch (err) {
+      flash(err instanceof Error ? err.message : 'Could not restore that file.')
+    }
+  }
+
   return (
     <>
       <PageHeader title="Settings" />
@@ -335,6 +368,27 @@ export default function SettingsPage() {
 
         <Card tone="white">
           <p className="text-sm">All data is stored privately on this device.</p>
+        </Card>
+
+        <Card tone="white">
+          <p className="font-semibold">Data Backup &amp; Security</p>
+          <p className="mt-1 text-sm">Save your pills, history and settings to a file, or restore them from one.</p>
+          <div className="mt-3 flex flex-col gap-2">
+            <button onClick={downloadBackup} className="rounded-xl bg-sky px-4 py-3 text-sm font-semibold">
+              Download Backup (.json)
+            </button>
+            <button onClick={() => fileInput.current?.click()} className="rounded-xl bg-lavender px-4 py-3 text-sm font-semibold">
+              Restore Data
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".json,application/json"
+              aria-label="Backup file"
+              className="hidden"
+              onChange={restoreBackup}
+            />
+          </div>
         </Card>
 
         <Card tone="white">
