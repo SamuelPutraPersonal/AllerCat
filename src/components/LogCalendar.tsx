@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Card from './Card'
-import type { PillLog } from '../storage'
+import LogEntryModal from './LogEntryModal'
+import type { PillItem, PillLog } from '../storage'
 import { toDateKey } from '../lib/streak'
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -11,7 +12,7 @@ type Status = 'clean' | 'symptoms' | 'missed' | 'future'
 const DOT: Record<Status, string> = {
   clean: 'bg-emerald-400',
   symptoms: 'bg-amber-400',
-  missed: 'bg-rose-200',
+  missed: 'bg-gray-400',
   future: 'bg-transparent',
 }
 
@@ -29,7 +30,15 @@ function Legend({ dot, label }: { dot: string; label: string }) {
   )
 }
 
-export default function LogCalendar({ logs }: { logs: PillLog[] }) {
+interface Props {
+  /** Logs for the selected pill only. */
+  logs: PillLog[]
+  pill: PillItem
+  onSave: (log: PillLog) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}
+
+export default function LogCalendar({ logs, pill, onSave, onDelete }: Props) {
   const today = toDateKey()
   const [cursor, setCursor] = useState(() => {
     const d = new Date()
@@ -48,8 +57,6 @@ export default function LogCalendar({ logs }: { logs: PillLog[] }) {
   ]
   const keyFor = (day: number) => toDateKey(new Date(year, month, day))
   const shift = (n: number) => setCursor(new Date(year, month + n, 1))
-
-  const selLog = selected ? byDate.get(selected) : undefined
 
   return (
     <>
@@ -96,57 +103,18 @@ export default function LogCalendar({ logs }: { logs: PillLog[] }) {
       </Card>
 
       {selected && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-4 sm:items-center"
-          onClick={() => setSelected(null)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Details for ${selected}`}
-            onClick={(e) => e.stopPropagation()}
-            className="animate-rise-in w-full max-w-sm rounded-3xl bg-cream p-5 shadow-xl"
-          >
-            <div className="mb-3 flex items-start justify-between">
-              <h3 className="text-lg font-bold">
-                {new Date(`${selected}T00:00`).toLocaleDateString(undefined, {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </h3>
-              <button aria-label="Close" onClick={() => setSelected(null)} className="rounded-full p-1">
-                <X size={20} />
-              </button>
-            </div>
-            {selLog?.pillTaken ? (
-              <dl className="space-y-2 text-sm">
-                <div>
-                  <dt className="text-ink-soft">Status</dt>
-                  <dd className="font-medium">Pill taken</dd>
-                </div>
-                <div>
-                  <dt className="text-ink-soft">Logged at</dt>
-                  <dd className="font-medium">{new Date(selLog.timestamp).toLocaleString()}</dd>
-                </div>
-                <div>
-                  <dt className="text-ink-soft">Symptoms</dt>
-                  <dd className="font-medium">{selLog.hasSymptoms ? selLog.symptoms.join(', ') : 'None'}</dd>
-                </div>
-                {selLog.notes && (
-                  <div>
-                    <dt className="text-ink-soft">Notes</dt>
-                    <dd className="font-medium">{selLog.notes}</dd>
-                  </div>
-                )}
-              </dl>
-            ) : (
-              <p className="text-sm text-ink-soft">
-                {selected > today ? 'This day hasn’t happened yet.' : 'No pill logged for this day.'}
-              </p>
-            )}
-          </div>
-        </div>
+        <LogEntryModal
+          // Remount per day/pill so the form re-seeds from that entry.
+          key={`${selected}:${pill.id}`}
+          date={selected}
+          pillId={pill.id}
+          pillName={pill.name}
+          existing={byDate.get(selected)}
+          future={selected > today}
+          onSave={onSave}
+          onDelete={onDelete}
+          onClose={() => setSelected(null)}
+        />
       )}
     </>
   )

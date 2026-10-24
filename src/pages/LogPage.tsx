@@ -11,7 +11,7 @@ import { buildReport } from '../lib/report'
 import { logsForPill } from '../lib/streak'
 
 export default function LogPage() {
-  const { items: allItems } = useStore('pillLogs')
+  const { items: allItems, save, remove } = useStore('pillLogs')
   const { settings } = useSettings()
   const [pillId, setPillId] = useState(settings.pills[0].id)
   // Fall back to the first pill if the selected one was deleted in Settings.
@@ -108,7 +108,7 @@ export default function LogPage() {
 
         <CheckInCard />
         <StatsRecap logs={items} />
-        <LogCalendar logs={items} />
+        <LogCalendar logs={items} pill={pill} onSave={save} onDelete={remove} />
         <h2 className="pt-2 text-sm font-semibold text-ink-soft">History</h2>
         {history.length === 0 ? (
           <Card tone="lavender">
